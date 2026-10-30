@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مراسلة فورية مباشرة</title>
+    <!-- مكتبة الربط المباشر PeerJS عبر شبكات الإنترنت العامة -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-body: #0b141a;
+            --header-bg: #202c33;
+            --chat-bg: #0c1317;
+            --out-bubble: #005c4b;
+            --in-bubble: #202c33;
+            --text-primary: #e9edef;
+            --text-secondary: #8696a0;
+            --accent-green: #00a884;
+            --check-read: #53bdeb; /* أزرق واتساب عند القراءة */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .chat-app {
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            background-color: var(--header-bg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        @media (min-width: 500px) {
+            .chat-app {
+                height: 92vh;
+                border-radius: 20px;
+                border: 1px solid #2a3942;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            }
+        }
+
+        header {
+            padding: 12px 16px;
+            background-color: var(--header-bg);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #2a3942;
+        }
+
+        .user-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00a884, #075e54);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .status-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            display: inline-block;
+            background: #ef4444; /* أحمر = في انتظار الاتصال */
+            margin-left: 5px;
+        }
+
+        .status-dot.online {
+            background: #22c55e; /* أخضر = متصل بالهاتف الآخر مباشرة */
+        }
+
+        .btn-share {
+            background: #2a3942;
+            color: var(--accent-green);
+            border: 1px solid #3b4a54;
+            padding: 8px 14px;
+            border-radius: 18px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .btn-share:hover {
+            background: #32424c;
+        }
+
+        .chat-window {
+            flex: 1;
+            background-color: var(--chat-bg);
+            background-image: radial-gradient(#202c33 1px, transparent 1px);
+            background-size: 18px 18px;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .msg-bubble {
+            max-width: 78%;
+            padding: 7px 12px 5px;
+            border-radius: 12px;
+            font-size: 14.5px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sent {
+            align-self: flex-start;
+            background-color: var(--out-bubble);
+            border-bottom-right-radius: 2px;
+        }
+
+        .received {
+            align-self: flex-end;
+            background-color: var(--in-bubble);
+            border-bottom-left-radius: 2px;
+        }
+
+        .bubble-meta {
+            align-self: flex-end;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 3px;
+        }
+
+        .check-marks {
+            font-size: 12px;
+            letter-spacing: -2px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .check-marks.read {
+            color: var(--check-read);
+        }
+
+        footer {
+            padding: 10px 14px;
+            background-color: var(--header-bg);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            background-color: #2a3942;
+            border-radius: 22px;
+            padding: 9px 16px;
+        }
+
+        .input-wrapper input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-size: 15px;
+        }
+
+        .btn-send {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background-color: var(--accent-green);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-send svg {
+            width: 20px;
+            height: 20px;
+            fill: #fff;
+            transform: scaleX(-1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-app">
+    <header>
+        <div class="user-meta">
+            <div class="avatar">💬</div>
+            <div>
+                <h3>غرفة المحادثة</h3>
+                <small id="connectionStatus"><span class="status-dot" id="statusDot"></span> جاري تهيئة الاتصال...</small>
+            </div>
+        </div>
+        <button class="btn-share" id="btnShare">🔗 مشاركة الرابط</button>
+    </header>
+
+    <div class="chat-window" id="chatWindow">
+        <div style="text-align: center; color: var(--text-secondary); margin-top: 40px; font-size: 13.5px;" id="waitingNotice">
+            اضغط على "مشاركة الرابط" في الأعلى وشاركه مع صاحبك لفتح خط اتصال مباشر بين الهاتفين.
+        </div>
+    </div>
+
+    <footer>
+        <div class="input-wrapper">
+            <input type="text" id="msgInput" placeholder="اكتب رسالة..." autocomplete="off">
+        </div>
+        <button class="btn-send" id="btnSend">
+            <svg viewBox="0 0 24 24">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+        </button>
+    </footer>
+</div>
+
+<script>
+    const chatWindow = document.getElementById('chatWindow');
+    const msgInput = document.getElementById('msgInput');
+    const btnSend = document.getElementById('btnSend');
+    const btnShare = document.getElementById('btnShare');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const statusDot = document.getElementById('statusDot');
+    const waitingNotice = document.getElementById('waitingNotice');
+
+    // قراءة معرف الصديق من الرابط في حال تم فتحه عبر رابط مشاركة
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetPeerId = urlParams.get('peer');
+
+    let peer = null;
+    let activeConn = null;
+    let myPeerId = null;
+    let messages = [];
+
+    // تهيئة شبكة P2P المباشرة بدون أي حسابات
+    peer = new Peer({
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        }
+    });
+
+    peer.on('open', (id) => {
+        myPeerId = id;
+        if (!targetPeerId) {
+            connectionStatus.innerHTML = '<span class="status-dot"></span> بانتظار دخول صاحبك...';
+        } else {
+            connectionStatus.innerHTML = '<span class="status-dot"></span> جاري الاتصال بصاحبك...';
+            connectToPeer(targetPeerId);
+        }
+    });
+
+    // استقبال الاتصال القادم من صاحبك عندما يفتح رابطك
+    peer.on('connection', (conn) => {
+        setupConnection(conn);
+    });
+
+    function connectToPeer(id) {
+        const conn = peer.connect(id);
+        setupConnection(conn);
+    }
+
+    function setupConnection(conn) {
+        activeConn = conn;
+
+        conn.on('open', () => {
+            statusDot.className = 'status-dot online';
+            connectionStatus.innerHTML = '<span class="status-dot online"></span> متصل مباشرة الآن';
+            if (waitingNotice) waitingNotice.style.display = 'none';
+            notifyRead();
+        });
+
+        // استقبال البيانات القادمة من الهاتف الآخر
+        conn.on('data', (data) => {
+            if (data.type === 'NEW_MESSAGE') {
+                messages.push({
+                    id: data.id,
+                    text: data.text,
+                    time: data.time,
+                    isMe: false
+                });
+                renderMessages();
+
+                // إرسال إشعار القراءة فوراً ليتحول عند المرسل إلى صحين أزرقين
+                conn.send({ type: 'READ_ACK', id: data.id });
+            } else if (data.type === 'READ_ACK') {
+                // صاحبك قرأ الرسالة -> تفعيل الصحين الأزرقين
+                const target = messages.find(m => m.id === data.id);
+                if (target) {
+                    target.read = true;
+                    renderMessages();
+                }
+            }
+        });
+
+        conn.on('close', () => {
+            statusDot.className = 'status-dot';
+            connectionStatus.innerHTML = '<span class="status-dot"></span> انقطع الاتصال';
+        });
+    }
+
+    function notifyRead() {
+        if (activeConn && activeConn.open) {
+            messages.filter(m => !m.isMe).forEach(m => {
+                activeConn.send({ type: 'READ_ACK', id: m.id });
+            });
+        }
+    }
+
+    // إرسال الرسالة
+    function sendMessage() {
+        const text = msgInput.value.trim();
+        if (!text) return;
+
+        if (!activeConn || !activeConn.open) {
+            alert('صاحبك لم يدخل بعد! شارك الرابط معه واطلب منه فتحه في المتصفح.');
+            return;
+        }
+
+        const msgId = 'msg_' + Date.now();
+        const timeNow = new Date().toLocaleTimeString('ar-YE', { hour: '2-digit', minute: '2-digit' });
+
+        const newMsg = {
+            id: msgId,
+            text: text,
+            time: timeNow,
+            isMe: true,
+            read: false // تبدأ بصح رمادي
+        };
+
+        messages.push(newMsg);
+        renderMessages();
+        msgInput.value = '';
+
+        // إرسال الرسالة عبر النفق المشفر المباشر
+        activeConn.send({
+            type: 'NEW_MESSAGE',
+            id: msgId,
+            text: text,
+            time: timeNow
+        });
+    }
+
+    function renderMessages() {
+        chatWindow.innerHTML = '';
+        messages.forEach(msg => {
+            const bubble = document.createElement('div');
+            bubble.className = `msg-bubble ${msg.isMe ? 'sent' : 'received'}`;
+
+            let checkHtml = '';
+            if (msg.isMe) {
+                if (msg.read) {
+                    checkHtml = `<span class="check-marks read" title="تمت القراءة">✓✓</span>`;
+                } else {
+                    checkHtml = `<span class="check-marks" title="تم الإرسال">✓</span>`;
+                }
+            }
+
+            bubble.innerHTML = `
+                <div>${escapeHtml(msg.text)}</div>
+                <div class="bubble-meta">
+                    <span>${msg.time}</span>
+                    ${checkHtml}
+                </div>
+            `;
+            chatWindow.appendChild(bubble);
+        });
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    // نسخ ومشاركة الرابط المولد تلقائياً
+    btnShare.addEventListener('click', () => {
+        if (!myPeerId) {
+            alert('جاري تجهيز معرف الاتصال، انتظر ثانية واحدة ثم اضغط مجدداً...');
+            return;
+        }
+
+        const shareUrl = window.location.origin + window.location.pathname + '?peer=' + myPeerId;
+
+        if (navigator.share) {
+            navigator.share({
+                title: 'محادثة مباشرة',
+                text: 'افتح الرابط لنتراسل مباشرة:',
+                url: shareUrl
+            }).catch(() => {});
+        } else {
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                alert('تم نسخ الرابط! أرسله لصاحبك في صنعاء عبر الواتساب، وبمجرد أن يفتحه سيبدأ التراسل مباشرة.');
+            });
+        }
+    });
+
+    btnSend.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+</script>
+
+</body>
+</html>
